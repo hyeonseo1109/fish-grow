@@ -13,6 +13,17 @@ const keyVectors: Record<string, Vector> = {
   d: { x: 1, y: 0 },
 };
 
+const codeToKey: Record<string, string> = {
+  ArrowUp: "ArrowUp",
+  KeyW: "w",
+  ArrowDown: "ArrowDown",
+  KeyS: "s",
+  ArrowLeft: "ArrowLeft",
+  KeyA: "a",
+  ArrowRight: "ArrowRight",
+  KeyD: "d",
+};
+
 export function useArrowControls() {
   const pressedKeys = useRef(new Set<string>());
   const movement = useRef<Vector>({ x: 0, y: 0 });
@@ -36,32 +47,51 @@ export function useArrowControls() {
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (!(event.key in keyVectors)) {
+      const key = getControlKey(event);
+
+      if (!(key in keyVectors)) {
         return;
       }
 
       event.preventDefault();
-      pressedKeys.current.add(event.key);
+      pressedKeys.current.add(key);
       updateMovement();
     };
 
     const handleKeyUp = (event: KeyboardEvent) => {
-      if (!(event.key in keyVectors)) {
+      const key = getControlKey(event);
+
+      if (!(key in keyVectors)) {
         return;
       }
 
-      pressedKeys.current.delete(event.key);
+      pressedKeys.current.delete(key);
+      updateMovement();
+    };
+
+    const handleBlur = () => {
+      pressedKeys.current.clear();
       updateMovement();
     };
 
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("keyup", handleKeyUp);
+    window.addEventListener("blur", handleBlur);
 
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
+      window.removeEventListener("blur", handleBlur);
     };
   }, []);
 
   return movement;
+}
+
+function normalizeKey(key: string) {
+  return key.length === 1 ? key.toLowerCase() : key;
+}
+
+function getControlKey(event: KeyboardEvent) {
+  return codeToKey[event.code] ?? normalizeKey(event.key);
 }

@@ -12,11 +12,13 @@ export type GameState = {
   player: PlayerFish;
   foods: Fish[];
   startedAt: number;
-  status: "playing" | "won" | "gameOver";
+  elapsedSeconds: number;
+  status: "playing" | "paused" | "won" | "gameOver";
 };
 
 export const FOOD_COUNT = 28;
 export const WIN_RADIUS = 86;
+export const START_INVINCIBLE_SECONDS = 0.3;
 
 export function createInitialGameState(): GameState {
   const player = createPlayerFish();
@@ -27,6 +29,7 @@ export function createInitialGameState(): GameState {
       createFoodFish(`food-${index}`, player.radius)
     ),
     startedAt: performance.now(),
+    elapsedSeconds: 0,
     status: "playing"
   };
 }
@@ -39,6 +42,9 @@ export function advanceGame(
   if (state.status !== "playing") {
     return state;
   }
+
+  const elapsedSeconds = state.elapsedSeconds + deltaSeconds;
+  const isInvincible = elapsedSeconds < START_INVINCIBLE_SECONDS;
 
   const playerDirection =
     movement.x === 0 && movement.y === 0 ? state.player.direction : movement;
@@ -76,7 +82,7 @@ export function advanceGame(
       continue;
     }
 
-    if (!canEat && isCaught) {
+    if (!canEat && isCaught && !isInvincible) {
       hitPredator = true;
     }
 
@@ -98,10 +104,29 @@ export function advanceGame(
 
   return {
     ...state,
+    elapsedSeconds,
     player: grownPlayer,
     foods: replenishedFoods,
     status: hitPredator ? "gameOver" : grownPlayer.radius >= WIN_RADIUS ? "won" : "playing"
   };
+}
+
+export function togglePause(state: GameState): GameState {
+  if (state.status === "playing") {
+    return {
+      ...state,
+      status: "paused"
+    };
+  }
+
+  if (state.status === "paused") {
+    return {
+      ...state,
+      status: "playing"
+    };
+  }
+
+  return state;
 }
 
 function moveFood(food: Fish, deltaSeconds: number): Fish {

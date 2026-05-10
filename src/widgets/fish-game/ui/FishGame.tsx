@@ -1,4 +1,4 @@
-import { RotateCcw } from "lucide-react";
+import { Pause, Play, RotateCcw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { useArrowControls } from "@features/move-player-fish";
@@ -19,6 +19,8 @@ import predatorFish6 from "@shared/assets/predator-fish-6.png";
 import {
   advanceGame,
   createInitialGameState,
+  START_INVINCIBLE_SECONDS,
+  togglePause,
   WIN_RADIUS,
   type GameState,
 } from "../model/game";
@@ -63,10 +65,17 @@ export function FishGame() {
   const playerBob = isPlayerIdle
     ? Math.sin((performance.now() - game.startedAt) / 520) * 3
     : 0;
+  const isInvincible = game.elapsedSeconds < START_INVINCIBLE_SECONDS;
+  const canPause = game.status === "playing" || game.status === "paused";
 
   const restart = () => {
     lastTimeRef.current = performance.now();
     setGame(createInitialGameState());
+  };
+
+  const handlePauseToggle = () => {
+    lastTimeRef.current = performance.now();
+    setGame((current) => togglePause(current));
   };
 
   return (
@@ -81,14 +90,29 @@ export function FishGame() {
           <Stat label="먹은 물고기" value={game.player.eaten.toString()} />
           <Stat label="성장" value={`${progress}%`} />
         </div>
-        <button
-          className="icon-button"
-          type="button"
-          aria-label="다시 시작"
-          onClick={restart}
-        >
-          <RotateCcw size={20} aria-hidden="true" />
-        </button>
+        <div className="topbar-actions">
+          <button
+            className="icon-button"
+            type="button"
+            aria-label={game.status === "paused" ? "계속하기" : "일시정지"}
+            onClick={handlePauseToggle}
+            disabled={!canPause}
+          >
+            {game.status === "paused" ? (
+              <Play size={20} aria-hidden="true" />
+            ) : (
+              <Pause size={20} aria-hidden="true" />
+            )}
+          </button>
+          <button
+            className="icon-button"
+            type="button"
+            aria-label="다시 시작"
+            onClick={restart}
+          >
+            <RotateCcw size={20} aria-hidden="true" />
+          </button>
+        </div>
       </section>
 
       <section className="sea-wrap" aria-label="물고기 게임">
@@ -139,27 +163,29 @@ export function FishGame() {
             fish={game.player}
             imageSrc={playerFishImage}
             isPlayer
+            isInvincible={isInvincible}
             swimOffsetY={playerBob}
           />
         </svg>
 
         {game.status !== "playing" && (
           <div className="win-panel" role="status">
-            <strong>{game.status === "won" ? "성공!" : "게임 오버"}</strong>
+            <strong>{getOverlayTitle(game.status)}</strong>
             <span>
-              {game.status === "won"
-                ? "충분히 커졌어요. 다시 시작해서 더 빠르게 성장해 보세요."
-                : "나보다 큰 상대와 부딪혔어요. 다시 도전해 보세요."}
+              {getOverlayMessage(game.status)}
             </span>
-            <button type="button" onClick={restart}>
-              다시 시작
+            <button
+              type="button"
+              onClick={game.status === "paused" ? handlePauseToggle : restart}
+            >
+              {game.status === "paused" ? "계속하기" : "다시 시작"}
             </button>
           </div>
         )}
       </section>
 
       <footer className="game-footer">
-        <span>방향키로 이동</span>
+        <span>방향키 또는 WASD로 이동</span>
         <span>나보다 작은 상대만 먹을 수 있어요</span>
       </footer>
     </main>
@@ -184,6 +210,7 @@ type FishSpriteProps = {
   fish: Fish | PlayerFish;
   imageSrc: string;
   isPlayer?: boolean;
+  isInvincible?: boolean;
   swimOffsetY?: number;
 };
 
@@ -191,6 +218,7 @@ function FishSprite({
   fish,
   imageSrc,
   isPlayer = false,
+  isInvincible = false,
   swimOffsetY = 0,
 }: FishSpriteProps) {
   const facingLeft = fish.direction.x < 0;
@@ -201,7 +229,7 @@ function FishSprite({
   return (
     <g
       transform={`translate(${fish.position.x} ${fish.position.y + swimOffsetY}) scale(${scaleX} 1)`}
-      className={isPlayer ? "player-fish" : "food-fish"}
+      className={`${isPlayer ? "player-fish" : "food-fish"} ${isInvincible ? "is-invincible" : ""}`}
     >
       <image
         href={imageSrc}
@@ -213,4 +241,28 @@ function FishSprite({
       />
     </g>
   );
+}
+
+function getOverlayTitle(status: GameState["status"]) {
+  if (status === "won") {
+    return "성공!";
+  }
+
+  if (status === "paused") {
+    return "일시정지";
+  }
+
+  return "게임 오버";
+}
+
+function getOverlayMessage(status: GameState["status"]) {
+  if (status === "won") {
+    return "충분히 커졌어요. 다시 시작해서 더 빠르게 성장해 보세요.";
+  }
+
+  if (status === "paused") {
+    return "잠깐 숨을 고르는 중이에요.";
+  }
+
+  return "나보다 큰 상대와 부딪혔어요. 다시 도전해 보세요.";
 }
