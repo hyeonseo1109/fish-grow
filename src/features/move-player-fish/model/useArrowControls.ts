@@ -4,9 +4,13 @@ import { normalize, type Vector } from "@entities/fish";
 
 const keyVectors: Record<string, Vector> = {
   ArrowUp: { x: 0, y: -1 },
+  w: { x: 0, y: -1 },
   ArrowDown: { x: 0, y: 1 },
+  s: { x: 0, y: 1 },
   ArrowLeft: { x: -1, y: 0 },
-  ArrowRight: { x: 1, y: 0 }
+  a: { x: -1, y: 0 },
+  ArrowRight: { x: 1, y: 0 },
+  d: { x: 1, y: 0 },
 };
 
 export function useArrowControls() {
@@ -23,7 +27,7 @@ export function useArrowControls() {
         if (vector) {
           next = {
             x: next.x + vector.x,
-            y: next.y + vector.y
+            y: next.y + vector.y,
           };
         }
       });

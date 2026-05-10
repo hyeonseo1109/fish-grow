@@ -6,10 +6,10 @@ export type Fish = {
   radius: number;
   speed: number;
   direction: Vector;
-  color: string;
+  imageIndex: number;
 };
 
-export type PlayerFish = Fish & {
+export type PlayerFish = Omit<Fish, "imageIndex"> & {
   score: number;
   eaten: number;
 };

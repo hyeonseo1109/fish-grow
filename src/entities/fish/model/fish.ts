@@ -4,8 +4,7 @@ import type { Fish, PlayerFish } from "./types";
 
 export const SEA_WIDTH = 960;
 export const SEA_HEIGHT = 620;
-
-const FOOD_COLORS = ["#ff6b6b", "#ffd166", "#8ac926", "#4cc9f0", "#f72585"];
+export const PREDATOR_IMAGE_COUNT = 6;
 
 export function createPlayerFish(): PlayerFish {
   return {
@@ -14,30 +13,32 @@ export function createPlayerFish(): PlayerFish {
     radius: 24,
     speed: 260,
     direction: { x: 1, y: 0 },
-    color: "#2dd4bf",
     score: 0,
-    eaten: 0
+    eaten: 0,
   };
 }
 
 export function createFoodFish(id: string, playerRadius: number): Fish {
-  const radius = randomBetween(8, Math.max(14, playerRadius * 0.92));
+  const isBiggerThanPlayer = Math.random() < 0.32;
+  const radius = isBiggerThanPlayer
+    ? randomBetween(playerRadius * 1.04, playerRadius * 1.42)
+    : randomBetween(8, Math.max(14, playerRadius * 0.9));
   const edgePadding = radius + 12;
   const direction = normalize({
     x: randomBetween(-1, 1),
-    y: randomBetween(-0.35, 0.35)
+    y: randomBetween(-0.35, 0.35),
   });
 
   return {
     id,
     position: {
       x: randomBetween(edgePadding, SEA_WIDTH - edgePadding),
-      y: randomBetween(edgePadding, SEA_HEIGHT - edgePadding)
+      y: randomBetween(edgePadding, SEA_HEIGHT - edgePadding),
     },
     radius,
     speed: randomBetween(18, 64),
     direction,
-    color: FOOD_COLORS[Math.floor(Math.random() * FOOD_COLORS.length)]
+    imageIndex: Math.floor(Math.random() * PREDATOR_IMAGE_COUNT) + 1,
   };
 }
 
@@ -50,6 +51,6 @@ export function normalize(vector: Vector): Vector {
 
   return {
     x: vector.x / length,
-    y: vector.y / length
+    y: vector.y / length,
   };
 }

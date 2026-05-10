@@ -12,7 +12,7 @@ export type GameState = {
   player: PlayerFish;
   foods: Fish[];
   startedAt: number;
-  status: "playing" | "won";
+  status: "playing" | "won" | "gameOver";
 };
 
 export const FOOD_COUNT = 28;
@@ -36,7 +36,7 @@ export function advanceGame(
   movement: Vector,
   deltaSeconds: number
 ): GameState {
-  if (state.status === "won") {
+  if (state.status !== "playing") {
     return state;
   }
 
@@ -64,6 +64,7 @@ export function advanceGame(
   const remainingFoods: Fish[] = [];
   let eaten = 0;
   let growth = 0;
+  let hitPredator = false;
 
   for (const food of movedFoods) {
     const canEat = food.radius < player.radius * 0.96;
@@ -73,6 +74,10 @@ export function advanceGame(
       eaten += 1;
       growth += Math.max(1.2, food.radius * 0.08);
       continue;
+    }
+
+    if (!canEat && isCaught) {
+      hitPredator = true;
     }
 
     remainingFoods.push(food);
@@ -95,7 +100,7 @@ export function advanceGame(
     ...state,
     player: grownPlayer,
     foods: replenishedFoods,
-    status: grownPlayer.radius >= WIN_RADIUS ? "won" : "playing"
+    status: hitPredator ? "gameOver" : grownPlayer.radius >= WIN_RADIUS ? "won" : "playing"
   };
 }
 
