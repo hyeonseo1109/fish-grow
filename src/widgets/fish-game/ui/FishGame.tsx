@@ -5,6 +5,7 @@ import { useArrowControls } from "@features/move-player-fish";
 import {
   SEA_HEIGHT,
   SEA_WIDTH,
+  type Vector,
   type Fish,
   type PlayerFish,
 } from "@entities/fish";
@@ -39,15 +40,27 @@ export function FishGame() {
   const [game, setGame] = useState<GameState>(() => createInitialGameState());
   const frameRef = useRef<number | null>(null);
   const lastTimeRef = useRef(performance.now());
+  const touchTargetRef = useRef<Vector | null>(null);
 
   useEffect(() => {
     const tick = (time: number) => {
       const deltaSeconds = Math.min(0.032, (time - lastTimeRef.current) / 1000);
       lastTimeRef.current = time;
 
-      setGame((current) =>
-        advanceGame(current, movement.current, deltaSeconds),
-      );
+      setGame((current) => {
+        const touchMovement = getTouchMovement(
+          current.player.position,
+          touchTargetRef.current,
+        );
+
+        if (touchMovement?.reachedTarget) {
+          touchTargetRef.current = null;
+        }
+
+        const activeMovement = touchMovement?.vector ?? movement.current;
+
+        return advanceGame(current, activeMovement, deltaSeconds);
+      });
       frameRef.current = requestAnimationFrame(tick);
     };
 
@@ -69,21 +82,71 @@ export function FishGame() {
   const canPause = game.status === "playing" || game.status === "paused";
 
   const restart = () => {
+    touchTargetRef.current = null;
     lastTimeRef.current = performance.now();
     setGame(createInitialGameState());
   };
 
   const handlePauseToggle = () => {
+    touchTargetRef.current = null;
     lastTimeRef.current = performance.now();
     setGame((current) => togglePause(current));
   };
 
+  const handlePointerDown = (event: React.PointerEvent<SVGSVGElement>) => {
+    if (game.status !== "playing") {
+      return;
+    }
+
+    event.currentTarget.setPointerCapture(event.pointerId);
+    touchTargetRef.current = getSvgPoint(event, event.currentTarget);
+  };
+
+  const handlePointerMove = (event: React.PointerEvent<SVGSVGElement>) => {
+    if (game.status !== "playing" || event.buttons === 0) {
+      return;
+    }
+
+    touchTargetRef.current = getSvgPoint(event, event.currentTarget);
+  };
+
+  const handlePointerCancel = () => {
+    touchTargetRef.current = null;
+  };
+
+  useEffect(() => {
+    const handleRestartKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Enter") {
+        return;
+      }
+
+      setGame((current) => {
+        if (current.status === "playing") {
+          return current;
+        }
+
+        lastTimeRef.current = performance.now();
+        touchTargetRef.current = null;
+        return createInitialGameState();
+      });
+    };
+
+    window.addEventListener("keydown", handleRestartKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleRestartKeyDown);
+    };
+  }, []);
+
   return (
     <main className="game-shell">
       <section className="game-topbar" aria-label="게임 상태">
-        <div>
+        <div className="allTitleWrapper">
           <p className="eyebrow">Fish Grow</p>
-          <h1>큰 물고기가 될 시간</h1>
+          <div className="titleWrapper">
+            <p>𓂃𓂃𓂃𓊝𓄹𓄺𓂃𓂃𓂃</p>
+            <p>𓆉𓆝𓆟𓆟𓆞𓆡𓆜𓇼</p>
+          </div>
         </div>
         <div className="stats" aria-label="점수와 성장 상태">
           <Stat label="점수" value={game.player.score.toString()} />
@@ -120,7 +183,10 @@ export function FishGame() {
           className="sea"
           viewBox={`0 0 ${SEA_WIDTH} ${SEA_HEIGHT}`}
           role="img"
-          aria-label="방향키로 조작하는 물고기 게임 화면"
+          aria-label="방향키, WASD, 터치로 조작하는 물고기 게임 화면"
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerCancel={handlePointerCancel}
         >
           <defs>
             <linearGradient id="seaGradient" x1="0" x2="1" y1="0" y2="1">
@@ -171,9 +237,7 @@ export function FishGame() {
         {game.status !== "playing" && (
           <div className="win-panel" role="status">
             <strong>{getOverlayTitle(game.status)}</strong>
-            <span>
-              {getOverlayMessage(game.status)}
-            </span>
+            <span>{getOverlayMessage(game.status)}</span>
             <button
               type="button"
               onClick={game.status === "paused" ? handlePauseToggle : restart}
@@ -185,8 +249,7 @@ export function FishGame() {
       </section>
 
       <footer className="game-footer">
-        <span>방향키 또는 WASD로 이동</span>
-        <span>나보다 작은 상대만 먹을 수 있어요</span>
+        <span>방향키/WASD키 또는 터치로 이동할 수 있어요.</span>
       </footer>
     </main>
   );
@@ -265,4 +328,44 @@ function getOverlayMessage(status: GameState["status"]) {
   }
 
   return "나보다 큰 상대와 부딪혔어요. 다시 도전해 보세요.";
+}
+
+function getSvgPoint(
+  event: React.PointerEvent<SVGSVGElement>,
+  svg: SVGSVGElement,
+): Vector {
+  const rect = svg.getBoundingClientRect();
+
+  return {
+    x: ((event.clientX - rect.left) / rect.width) * SEA_WIDTH,
+    y: ((event.clientY - rect.top) / rect.height) * SEA_HEIGHT,
+  };
+}
+
+function getTouchMovement(
+  playerPosition: Vector,
+  targetPosition: Vector | null,
+): { vector: Vector; reachedTarget: boolean } | null {
+  if (!targetPosition) {
+    return null;
+  }
+
+  const x = targetPosition.x - playerPosition.x;
+  const y = targetPosition.y - playerPosition.y;
+  const distance = Math.hypot(x, y);
+
+  if (distance < 10) {
+    return {
+      vector: { x: 0, y: 0 },
+      reachedTarget: true,
+    };
+  }
+
+  return {
+    vector: {
+      x: x / distance,
+      y: y / distance,
+    },
+    reachedTarget: false,
+  };
 }

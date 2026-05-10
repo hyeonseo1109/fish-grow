@@ -5,7 +5,7 @@ import {
   SEA_HEIGHT,
   SEA_WIDTH,
   type Fish,
-  type PlayerFish
+  type PlayerFish,
 } from "@entities/fish";
 
 export type GameState = {
@@ -18,7 +18,8 @@ export type GameState = {
 
 export const FOOD_COUNT = 28;
 export const WIN_RADIUS = 86;
-export const START_INVINCIBLE_SECONDS = 0.3;
+export const START_INVINCIBLE_SECONDS = 0.5;
+const FISH_EDGE_PADDING_MULTIPLIER = 1.7;
 
 export function createInitialGameState(): GameState {
   const player = createPlayerFish();
@@ -26,18 +27,21 @@ export function createInitialGameState(): GameState {
   return {
     player,
     foods: Array.from({ length: FOOD_COUNT }, (_, index) =>
-      createFoodFish(`food-${index}`, player.radius)
+      createFoodFish(`food-${index}`, player.radius, {
+        position: player.position,
+        radius: player.radius,
+      }),
     ),
     startedAt: performance.now(),
     elapsedSeconds: 0,
-    status: "playing"
+    status: "playing",
   };
 }
 
 export function advanceGame(
   state: GameState,
   movement: Vector,
-  deltaSeconds: number
+  deltaSeconds: number,
 ): GameState {
   if (state.status !== "playing") {
     return state;
@@ -54,16 +58,18 @@ export function advanceGame(
     direction: playerDirection,
     position: {
       x: clamp(
-        state.player.position.x + movement.x * state.player.speed * deltaSeconds,
-        state.player.radius,
-        SEA_WIDTH - state.player.radius
+        state.player.position.x +
+          movement.x * state.player.speed * deltaSeconds,
+        getEdgePadding(state.player.radius),
+        SEA_WIDTH - getEdgePadding(state.player.radius),
       ),
       y: clamp(
-        state.player.position.y + movement.y * state.player.speed * deltaSeconds,
-        state.player.radius,
-        SEA_HEIGHT - state.player.radius
-      )
-    }
+        state.player.position.y +
+          movement.y * state.player.speed * deltaSeconds,
+        getEdgePadding(state.player.radius),
+        SEA_HEIGHT - getEdgePadding(state.player.radius),
+      ),
+    },
   };
 
   const movedFoods = state.foods.map((food) => moveFood(food, deltaSeconds));
@@ -74,7 +80,9 @@ export function advanceGame(
 
   for (const food of movedFoods) {
     const canEat = food.radius < player.radius * 0.96;
-    const isCaught = distance(food.position, player.position) < player.radius + food.radius * 0.72;
+    const isCaught =
+      distance(food.position, player.position) <
+      player.radius + food.radius * 0.72;
 
     if (canEat && isCaught) {
       eaten += 1;
@@ -93,13 +101,18 @@ export function advanceGame(
     ...player,
     radius: Math.min(WIN_RADIUS, player.radius + growth),
     score: player.score + eaten * 10 + Math.round(growth * 3),
-    eaten: player.eaten + eaten
+    eaten: player.eaten + eaten,
   };
 
   const replenishedFoods = [...remainingFoods];
 
   while (replenishedFoods.length < FOOD_COUNT) {
-    replenishedFoods.push(createFoodFish(`food-${crypto.randomUUID()}`, grownPlayer.radius));
+    replenishedFoods.push(
+      createFoodFish(`food-${crypto.randomUUID()}`, grownPlayer.radius, {
+        position: grownPlayer.position,
+        radius: grownPlayer.radius,
+      }),
+    );
   }
 
   return {
@@ -107,7 +120,11 @@ export function advanceGame(
     elapsedSeconds,
     player: grownPlayer,
     foods: replenishedFoods,
-    status: hitPredator ? "gameOver" : grownPlayer.radius >= WIN_RADIUS ? "won" : "playing"
+    status: hitPredator
+      ? "gameOver"
+      : grownPlayer.radius >= WIN_RADIUS
+        ? "won"
+        : "playing",
   };
 }
 
@@ -115,14 +132,14 @@ export function togglePause(state: GameState): GameState {
   if (state.status === "playing") {
     return {
       ...state,
-      status: "paused"
+      status: "paused",
     };
   }
 
   if (state.status === "paused") {
     return {
       ...state,
-      status: "playing"
+      status: "playing",
     };
   }
 
@@ -132,25 +149,31 @@ export function togglePause(state: GameState): GameState {
 function moveFood(food: Fish, deltaSeconds: number): Fish {
   const nextPosition = {
     x: food.position.x + food.direction.x * food.speed * deltaSeconds,
-    y: food.position.y + food.direction.y * food.speed * deltaSeconds
+    y: food.position.y + food.direction.y * food.speed * deltaSeconds,
   };
 
   let nextDirection = food.direction;
 
-  if (nextPosition.x < food.radius || nextPosition.x > SEA_WIDTH - food.radius) {
+  const edgePadding = getEdgePadding(food.radius);
+
+  if (nextPosition.x < edgePadding || nextPosition.x > SEA_WIDTH - edgePadding) {
     nextDirection = { ...nextDirection, x: -nextDirection.x };
   }
 
-  if (nextPosition.y < food.radius || nextPosition.y > SEA_HEIGHT - food.radius) {
+  if (nextPosition.y < edgePadding || nextPosition.y > SEA_HEIGHT - edgePadding) {
     nextDirection = { ...nextDirection, y: -nextDirection.y };
   }
 
   return {
     ...food,
     position: {
-      x: clamp(nextPosition.x, food.radius, SEA_WIDTH - food.radius),
-      y: clamp(nextPosition.y, food.radius, SEA_HEIGHT - food.radius)
+      x: clamp(nextPosition.x, edgePadding, SEA_WIDTH - edgePadding),
+      y: clamp(nextPosition.y, edgePadding, SEA_HEIGHT - edgePadding),
     },
-    direction: nextDirection
+    direction: nextDirection,
   };
+}
+
+function getEdgePadding(radius: number) {
+  return radius * FISH_EDGE_PADDING_MULTIPLIER;
 }
